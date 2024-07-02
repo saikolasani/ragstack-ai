@@ -2,15 +2,13 @@ import random
 import signal
 import time
 from typing import Any, Dict, List, Optional
+import pandas as pd
 
 from tqdm import tqdm
 from trulens_eval import Tru, TruChain
 from trulens_eval.feedback.provider import (
     AzureOpenAI,
-    Bedrock,
     Huggingface,
-    Langchain,
-    LiteLLM,
     OpenAI,
 )
 from trulens_eval.feedback.provider.base import LLMProvider
@@ -67,7 +65,7 @@ class QueryPipeline(BasePipeline):
             ingredients=ingredients,
             datasets=datasets,
         )
-
+        
         self.sample_percent = sample_percent
         self.random_seed = random_seed
         self.restart_pipeline = restart_pipeline
@@ -121,6 +119,16 @@ class QueryPipeline(BasePipeline):
     def start_evaluation(self):
         self._tru.start_evaluator(disable_tqdm=True)
         self._evaluation_running = True
+    
+    def export_results(self):
+        
+        for dataset_name in self._queries:
+            records, _feedback_names = self._tru.get_records_and_feedback(
+                    app_ids=[dataset_name]
+                )
+
+            # Export to JSON
+            records.to_json(f"{self._name}_{dataset_name}_results.json")
 
     def stop_evaluation(self, loc: str):
         if self._evaluation_running:
@@ -133,6 +141,7 @@ class QueryPipeline(BasePipeline):
                 logger.error(f"issue stopping evaluator: {e}")
             finally:
                 self._progress.close()
+                self.export_results()
 
     def update_progress(self, query_change: int = 0):
         self._finished_queries += query_change
